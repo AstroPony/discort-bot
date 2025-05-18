@@ -1,8 +1,6 @@
 const YtDlpWrap = require('yt-dlp-wrap').default;
-const path = require('path');
 const logger = require('../utils/logger');
-const ytDlpPath = require('yt-dlp-wrap').getYtDlpPath();
-const ytDlpWrap = new YtDlpWrap(ytDlpPath);
+const ytDlpWrap = new YtDlpWrap();
 const { Readable } = require('stream');
 
 // Fetch video info using yt-dlp-wrap
