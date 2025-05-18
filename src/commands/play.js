@@ -1,5 +1,5 @@
 const { SlashCommandBuilder } = require('discord.js');
-const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, VoiceConnectionStatus } = require('@discordjs/voice');
+const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, VoiceConnectionStatus, StreamType } = require('@discordjs/voice');
 const { getInfo, createStream } = require('../config/ytdl');
 const logger = require('../utils/logger');
 
@@ -54,7 +54,7 @@ module.exports = {
       
       logger.info('Creating audio resource...');
       const resource = createAudioResource(stream, {
-        inputType: 'raw',
+        inputType: StreamType.Raw,
         inlineVolume: true
       });
 

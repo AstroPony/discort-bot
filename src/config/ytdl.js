@@ -12,6 +12,11 @@ async function ensureYtDlp() {
     await YtDlpWrap.downloadFromGithub();
     logger.info('Successfully downloaded yt-dlp');
   } catch (error) {
+    if (error.code === 'ETXTBSY') {
+      logger.warn('yt-dlp is busy, retrying in 1 second...');
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      return ensureYtDlp();
+    }
     logger.error('Error downloading yt-dlp:', error);
     throw error;
   }
@@ -35,6 +40,11 @@ async function getInfo(url) {
     });
     return infoArr[0];
   } catch (error) {
+    if (error.code === 'ETXTBSY') {
+      logger.warn('yt-dlp is busy, retrying in 1 second...');
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      return getInfo(url);
+    }
     logger.error('Error fetching video info:', error);
     throw new Error(`Failed to fetch video info: ${error.stderr || error.message}`);
   }
@@ -44,20 +54,27 @@ async function getInfo(url) {
 async function createStream(url) {
   try {
     await ensureYtDlp();
-    // Use PCM format and let discord.js handle opus encoding
+    // Use FFmpeg to properly format the audio stream
     return ytDlpWrap.execStream([
       url,
       '-f', 'bestaudio',
       '--extract-audio',
-      '--audio-format', 'wav', // Change to WAV format
+      '--audio-format', 'pcm',
       '--audio-quality', '0',
-      '-o', '-',
+      '--output', '-',
       '--no-playlist',
       '--no-warnings',
+      '--ffmpeg-location', 'ffmpeg',
+      '--postprocessor-args', '-ar 48000 -ac 2 -f s16le',
       '--add-header', 'referer:youtube.com',
       '--add-header', 'user-agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
     ]);
   } catch (error) {
+    if (error.code === 'ETXTBSY') {
+      logger.warn('yt-dlp is busy, retrying in 1 second...');
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      return createStream(url);
+    }
     logger.error('Error creating stream:', error);
     throw new Error(`Failed to create stream: ${error.message}`);
   }
