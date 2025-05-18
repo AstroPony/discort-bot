@@ -7,7 +7,8 @@
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
     "deploy": "railway up",
-    "deploy-commands": "node src/deploy-commands.js"
+    "deploy-commands": "node src/deploy-commands.js",
+    "postinstall": "npx yt-dlp-wrap --download-binary"
   },
   "dependencies": {
     "@discordjs/voice": "^0.16.1",
