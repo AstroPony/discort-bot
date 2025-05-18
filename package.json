@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
-    "deploy": "railway up"
+    "deploy": "railway up",
+    "deploy-commands": "node src/deploy-commands.js"
   },
   "dependencies": {
     "discord.js": "^14.14.1",
