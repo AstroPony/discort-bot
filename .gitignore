@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+ENV/
+.env
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+
+# ffmpeg binaries and archives
+ffmpeg.zip
+ffmpeg/
+ffmpeg/ffmpeg-master-latest-win64-gpl/bin/ffmpeg.exe
+ffmpeg/ffmpeg-master-latest-win64-gpl/bin/ffplay.exe
+ffmpeg/ffmpeg-master-latest-win64-gpl/bin/ffprobe.exe
