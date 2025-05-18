@@ -13,9 +13,6 @@ const ytdlOptions = {
   }
 };
 
-// Configure ytdl-core with our options
-ytdl.setOptions(ytdlOptions);
-
 // Error handling wrapper
 async function getInfo(url) {
   try {
