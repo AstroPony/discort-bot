@@ -1,3 +1,4 @@
+const { spawn } = require('child_process');
 const YtDlpWrap = require('yt-dlp-wrap').default;
 const logger = require('../utils/logger');
 const path = require('path');
@@ -50,34 +51,33 @@ async function getInfo(url) {
   }
 }
 
-// Create an audio stream using yt-dlp-wrap
+// Create an audio stream using yt-dlp and ffmpeg for PCM output
 async function createStream(url) {
-  try {
-    await ensureYtDlp();
-    // Use FFmpeg to properly format the audio stream
-    return ytDlpWrap.execStream([
-      url,
-      '-f', 'bestaudio',
-      '--extract-audio',
-      '--audio-format', 'pcm',
-      '--audio-quality', '0',
-      '--output', '-',
-      '--no-playlist',
-      '--no-warnings',
-      '--ffmpeg-location', 'ffmpeg',
-      '--postprocessor-args', '-ar 48000 -ac 2 -f s16le',
-      '--add-header', 'referer:youtube.com',
-      '--add-header', 'user-agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-    ]);
-  } catch (error) {
-    if (error.code === 'ETXTBSY') {
-      logger.warn('yt-dlp is busy, retrying in 1 second...');
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      return createStream(url);
-    }
-    logger.error('Error creating stream:', error);
-    throw new Error(`Failed to create stream: ${error.message}`);
-  }
+  await ensureYtDlp();
+  // yt-dlp outputs bestaudio to stdout, ffmpeg reads from stdin and outputs PCM
+  const ytdlp = spawn('yt-dlp', [
+    '-f', 'bestaudio',
+    '-o', '-', // output to stdout
+    '--no-playlist',
+    '--no-warnings',
+    '--add-header', 'referer:youtube.com',
+    '--add-header', 'user-agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+    url
+  ], { stdio: ['ignore', 'pipe', 'ignore'] });
+
+  const ffmpeg = spawn('ffmpeg', [
+    '-i', 'pipe:0',
+    '-analyzeduration', '0',
+    '-loglevel', '0',
+    '-f', 's16le',
+    '-ar', '48000',
+    '-ac', '2',
+    'pipe:1'
+  ], { stdio: ['pipe', 'pipe', 'ignore'] });
+
+  ytdlp.stdout.pipe(ffmpeg.stdin);
+
+  return ffmpeg.stdout;
 }
 
 module.exports = {
