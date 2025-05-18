@@ -1,68 +1,72 @@
 # Discord Music Bot
 
-A Discord bot that can play music from YouTube and other free sources.
+A robust Discord music bot built with Node.js, featuring YouTube playback, error handling, and modular command structure.
 
 ## Features
-- Play music from YouTube
-- Queue system for multiple songs
-- Basic playback controls (play, pause, resume, stop)
-- Skip to next song
-- Show current song information
+
+- YouTube music playback
+- Global error handling
+- Environment variable validation
+- Modular command and event system
+- Rate limiting and retry mechanism
+- Permission management
+- Health check endpoint for Railway
+
+## Prerequisites
+
+- Node.js 16.x or higher
+- npm or yarn
+- Discord Bot Token
+- FFmpeg installed on your system
 
 ## Setup
-1. Install Python 3.8 or higher
-2. Install FFmpeg (required for audio processing)
-   - Windows: Download from https://ffmpeg.org/download.html
-   - Linux: `sudo apt-get install ffmpeg`
-   - macOS: `brew install ffmpeg`
-3. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-4. Create a `.env` file in the project root and add your Discord bot token:
-   ```
-   DISCORD_TOKEN=your_bot_token_here
-   ```
-5. Run the bot:
-   ```bash
-   python bot.py
-   ```
+
+1. Clone the repository:
+```bash
+git clone <repository-url>
+cd discord-music-bot
+```
+
+2. Install dependencies:
+```bash
+npm install
+```
+
+3. Copy the example environment file and fill in your values:
+```bash
+cp .env.example .env
+```
+
+4. Update the `.env` file with your Discord bot token and other configuration.
+
+## Development
+
+Run the bot in development mode with hot reloading:
+```bash
+npm run dev
+```
+
+## Deployment
+
+The bot is configured for deployment on Railway. To deploy:
+
+1. Push your changes to your repository
+2. Railway will automatically detect the Node.js project and deploy it
+3. Set up your environment variables in the Railway dashboard
 
 ## Commands
-- `!play <url or search term>` - Play a song from YouTube
-- `!pause` - Pause the current song
-- `!resume` - Resume the paused song
-- `!stop` - Stop playing and clear the queue
-- `!skip` - Skip to the next song
-- `!queue` - Show the current queue
-- `!nowplaying` - Show information about the current song
 
-## Note
-This bot is for educational purposes only. Please respect YouTube's terms of service and copyright laws when using this bot.
+- `/play <url>` - Play a song from YouTube
+- More commands coming soon...
 
-## Hosting the Bot for Free
+## Error Handling
 
-To keep your Discord music bot running 24/7, you can host it on a free platform like Railway. Here's a quick guide:
+The bot includes comprehensive error handling for:
+- Uncaught exceptions
+- Unhandled rejections
+- YouTube API errors
+- Voice connection issues
 
-### Using Railway
+## License
 
-1. Create a Railway account and install the Railway CLI.
-2. Log in to Railway:
-   ```bash
-   railway login
-   ```
-3. Initialize your project:
-   ```bash
-   railway init
-   ```
-4. Add a `Procfile` to your project root with the following content:
-   ```
-   worker: python bot.py
-   ```
-5. Push your code to Railway:
-   ```bash
-   railway up
-   ```
-6. Set your Discord bot token as an environment variable in the Railway dashboard.
-
-These steps will help you host your bot for free and keep it running constantly. Enjoy your Discord music bot! 
+MIT 

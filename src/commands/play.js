@@ -1,0 +1,68 @@
+const { SlashCommandBuilder } = require('discord.js');
+const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus } = require('@discordjs/voice');
+const { getInfo, createStream } = require('../config/ytdl');
+const logger = require('../utils/logger');
+
+module.exports = {
+  data: new SlashCommandBuilder()
+    .setName('play')
+    .setDescription('Play a song from YouTube')
+    .addStringOption(option =>
+      option.setName('url')
+        .setDescription('The YouTube URL to play')
+        .setRequired(true)),
+
+  async execute(interaction) {
+    try {
+      const url = interaction.options.getString('url');
+      
+      // Check if user is in a voice channel
+      if (!interaction.member.voice.channel) {
+        return interaction.reply('You need to be in a voice channel to use this command!');
+      }
+
+      await interaction.deferReply();
+
+      // Get video info
+      const info = await getInfo(url);
+      const title = info.videoDetails.title;
+
+      // Create voice connection
+      const connection = joinVoiceChannel({
+        channelId: interaction.member.voice.channel.id,
+        guildId: interaction.guild.id,
+        adapterCreator: interaction.guild.voiceAdapterCreator,
+      });
+
+      // Create audio player and resource
+      const player = createAudioPlayer();
+      const resource = createAudioResource(createStream(url), {
+        inputType: 'opus',
+        inlineVolume: true
+      });
+
+      // Set volume
+      resource.volume.setVolume(0.5);
+
+      // Handle player state changes
+      player.on(AudioPlayerStatus.Idle, () => {
+        connection.destroy();
+      });
+
+      player.on('error', error => {
+        logger.error('Audio player error:', error);
+        interaction.followUp('An error occurred while playing the audio.');
+        connection.destroy();
+      });
+
+      // Play the audio
+      connection.subscribe(player);
+      player.play(resource);
+
+      await interaction.followUp(`Now playing: ${title}`);
+    } catch (error) {
+      logger.error('Error in play command:', error);
+      await interaction.followUp(`An error occurred: ${error.message}`);
+    }
+  },
+}; 

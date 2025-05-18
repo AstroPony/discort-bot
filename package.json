@@ -1,0 +1,25 @@
+{
+  "name": "discord-music-bot",
+  "version": "1.0.0",
+  "description": "A Discord music bot with robust error handling and modular structure",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "deploy": "railway up"
+  },
+  "dependencies": {
+    "discord.js": "^14.14.1",
+    "dotenv": "^16.4.1",
+    "express": "^4.18.2",
+    "winston": "^3.11.0",
+    "joi": "^17.12.1",
+    "ytdl-core": "^4.11.5",
+    "@discordjs/voice": "^0.16.1",
+    "play-dl": "^1.9.7",
+    "libsodium-wrappers": "^0.7.13"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.3"
+  }
+} 
