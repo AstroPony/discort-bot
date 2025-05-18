@@ -26,7 +26,7 @@ module.exports = {
 
       // Get video info
       const info = await getInfo(url);
-      const title = info.videoDetails.title;
+      const title = info.title;
 
       // Create voice connection
       const connection = joinVoiceChannel({
@@ -38,7 +38,6 @@ module.exports = {
       // Create audio player and resource
       const player = createAudioPlayer();
       const resource = createAudioResource(createStream(url), {
-        inputType: 'opus',
         inlineVolume: true
       });
 
