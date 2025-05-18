@@ -1,5 +1,5 @@
 const { SlashCommandBuilder } = require('discord.js');
-const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus } = require('@discordjs/voice');
+const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, VoiceConnectionStatus } = require('@discordjs/voice');
 const { getInfo, createStream } = require('../config/ytdl');
 const logger = require('../utils/logger');
 
@@ -14,39 +14,65 @@ module.exports = {
 
   async execute(interaction) {
     try {
-      // Defer the reply immediately to prevent timeout
       await interaction.deferReply();
-
       const url = interaction.options.getString('url');
       
-      // Check if user is in a voice channel
       if (!interaction.member.voice.channel) {
         return interaction.editReply('You need to be in a voice channel to use this command!');
       }
 
-      // Get video info
+      logger.info(`Attempting to play URL: ${url}`);
       const info = await getInfo(url);
       const title = info.title;
 
-      // Create voice connection
+      // Create voice connection with debug logging
       const connection = joinVoiceChannel({
         channelId: interaction.member.voice.channel.id,
         guildId: interaction.guild.id,
         adapterCreator: interaction.guild.voiceAdapterCreator,
+        selfDeaf: false, // Try without self deafening
       });
 
-      // Create audio player and resource
+      // Add connection state change logging
+      connection.on(VoiceConnectionStatus.Ready, () => {
+        logger.info('Voice Connection is ready!');
+      });
+
+      connection.on(VoiceConnectionStatus.Disconnected, () => {
+        logger.warn('Voice Connection disconnected!');
+      });
+
+      connection.on('error', error => {
+        logger.error('Voice Connection error:', error);
+      });
+
+      // Create audio player with debug logging
       const player = createAudioPlayer();
-      const resource = createAudioResource(createStream(url), {
-        inlineVolume: true
+      
+      logger.info('Creating audio stream...');
+      const stream = await createStream(url);
+      
+      logger.info('Creating audio resource...');
+      const resource = createAudioResource(stream, {
+        inlineVolume: true,
+        inputType: 'opus'
       });
 
-      // Set volume
-      resource.volume.setVolume(0.5);
+      // Set initial volume
+      resource.volume?.setVolume(0.5);
 
-      // Handle player state changes
+      // Add player state change logging
+      player.on(AudioPlayerStatus.Playing, () => {
+        logger.info('Audio player is playing');
+      });
+
       player.on(AudioPlayerStatus.Idle, () => {
+        logger.info('Audio player is idle');
         connection.destroy();
+      });
+
+      player.on(AudioPlayerStatus.Buffering, () => {
+        logger.info('Audio player is buffering');
       });
 
       player.on('error', error => {
@@ -57,17 +83,25 @@ module.exports = {
         connection.destroy();
       });
 
-      // Play the audio
-      connection.subscribe(player);
-      player.play(resource);
+      // Subscribe connection to player
+      const subscription = connection.subscribe(player);
+      if (subscription) {
+        logger.info('Successfully subscribed connection to player');
+      } else {
+        logger.error('Failed to subscribe connection to player');
+        return interaction.editReply('Failed to establish audio playback connection');
+      }
 
+      // Start playback
+      player.play(resource);
+      logger.info(`Starting playback of: ${title}`);
+      
       await interaction.editReply(`Now playing: ${title}`);
     } catch (error) {
       logger.error('Error in play command:', error);
-      // Use editReply instead of followUp since we deferred
       await interaction.editReply(`An error occurred: ${error.message}`).catch(err => 
         logger.error('Error sending error message:', err)
       );
     }
-  },
+  }
 }; 

@@ -44,10 +44,13 @@ async function getInfo(url) {
 async function createStream(url) {
   try {
     await ensureYtDlp();
-    // yt-dlp outputs best audio
+    // Specify explicit audio format parameters
     return ytDlpWrap.execStream([
       url,
       '-f', 'bestaudio',
+      '--extract-audio',
+      '--audio-format', 'opus',
+      '--audio-quality', '0', // Best quality
       '-o', '-',
       '--no-playlist',
       '--add-header', 'referer:youtube.com',
