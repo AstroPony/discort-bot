@@ -1,6 +1,9 @@
 const YtDlpWrap = require('yt-dlp-wrap').default;
 const logger = require('../utils/logger');
-const ytDlpWrap = new YtDlpWrap();
+const path = require('path');
+
+// Use the bundled binary
+const ytDlpWrap = new YtDlpWrap(path.join(__dirname, '../../node_modules/yt-dlp-wrap/binaries/yt-dlp'));
 const { Readable } = require('stream');
 
 // Fetch video info using yt-dlp-wrap
