@@ -44,15 +44,16 @@ async function getInfo(url) {
 async function createStream(url) {
   try {
     await ensureYtDlp();
-    // Specify explicit audio format parameters
+    // Use PCM format and let discord.js handle opus encoding
     return ytDlpWrap.execStream([
       url,
       '-f', 'bestaudio',
       '--extract-audio',
-      '--audio-format', 'opus',
-      '--audio-quality', '0', // Best quality
+      '--audio-format', 'wav', // Change to WAV format
+      '--audio-quality', '0',
       '-o', '-',
       '--no-playlist',
+      '--no-warnings',
       '--add-header', 'referer:youtube.com',
       '--add-header', 'user-agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
     ]);

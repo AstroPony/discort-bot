@@ -30,7 +30,7 @@ module.exports = {
         channelId: interaction.member.voice.channel.id,
         guildId: interaction.guild.id,
         adapterCreator: interaction.guild.voiceAdapterCreator,
-        selfDeaf: false, // Try without self deafening
+        selfDeaf: false,
       });
 
       // Add connection state change logging
@@ -54,8 +54,8 @@ module.exports = {
       
       logger.info('Creating audio resource...');
       const resource = createAudioResource(stream, {
-        inlineVolume: true,
-        inputType: 'opus'
+        inputType: 'raw',
+        inlineVolume: true
       });
 
       // Set initial volume
