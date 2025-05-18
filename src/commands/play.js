@@ -14,14 +14,15 @@ module.exports = {
 
   async execute(interaction) {
     try {
+      // Defer the reply immediately to prevent timeout
+      await interaction.deferReply();
+
       const url = interaction.options.getString('url');
       
       // Check if user is in a voice channel
       if (!interaction.member.voice.channel) {
-        return interaction.reply('You need to be in a voice channel to use this command!');
+        return interaction.editReply('You need to be in a voice channel to use this command!');
       }
-
-      await interaction.deferReply();
 
       // Get video info
       const info = await getInfo(url);
@@ -51,7 +52,9 @@ module.exports = {
 
       player.on('error', error => {
         logger.error('Audio player error:', error);
-        interaction.followUp('An error occurred while playing the audio.');
+        interaction.editReply('An error occurred while playing the audio.').catch(err => 
+          logger.error('Error sending error message:', err)
+        );
         connection.destroy();
       });
 
@@ -59,10 +62,13 @@ module.exports = {
       connection.subscribe(player);
       player.play(resource);
 
-      await interaction.followUp(`Now playing: ${title}`);
+      await interaction.editReply(`Now playing: ${title}`);
     } catch (error) {
       logger.error('Error in play command:', error);
-      await interaction.followUp(`An error occurred: ${error.message}`);
+      // Use editReply instead of followUp since we deferred
+      await interaction.editReply(`An error occurred: ${error.message}`).catch(err => 
+        logger.error('Error sending error message:', err)
+      );
     }
   },
 }; 
