@@ -1,15 +1,15 @@
 const { SlashCommandBuilder } = require('discord.js');
-const { getInfo } = require('../config/ytdl');
+const { getTracks } = require('../config/ytdl');
 const { GuildQueue, formatDuration } = require('../music/GuildQueue');
 const logger = require('../utils/logger');
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('play')
-    .setDescription('Play a song from YouTube, or add it to the queue')
+    .setDescription('Play a song or playlist from YouTube, or add it to the queue')
     .addStringOption(option =>
       option.setName('url')
-        .setDescription('The YouTube URL to play')
+        .setDescription('A YouTube video or playlist URL')
         .setRequired(true)),
 
   async execute(interaction) {
@@ -28,12 +28,12 @@ module.exports = {
     const url = interaction.options.getString('url');
     logger.info(`Attempting to play URL: ${url}`);
 
-    let info;
+    let result;
     try {
-      info = await getInfo(url);
+      result = await getTracks(url);
     } catch (error) {
       logger.error(`Could not fetch info for ${url}: ${error.message}`);
-      return interaction.editReply(`Couldn't load that video: ${error.message}`);
+      return interaction.editReply(`Couldn't load that link: ${error.message}`);
     }
 
     let queue;
@@ -44,17 +44,30 @@ module.exports = {
       return interaction.editReply("I couldn't join your voice channel. Check that I have Connect and Speak permissions.");
     }
 
-    const track = {
+    const requestedBy = interaction.user.toString();
+    // The reply covers the first song if it starts now; songs that start later get announced in the channel
+    const wasPlaying = Boolean(queue.current);
+    const positions = result.tracks.map((info, i) => queue.enqueue({
       ...info,
-      requestedBy: interaction.user.toString(),
-      // The reply covers the first song; songs that start later get announced in the channel
-      announce: Boolean(queue.current),
-    };
-    const position = queue.enqueue(track);
-    const length = formatDuration(track.duration);
+      requestedBy,
+      announce: wasPlaying || i > 0,
+    }));
 
-    await interaction.editReply(position === 0
-      ? `▶️ Now playing: **${track.title}** (${length})`
-      : `➕ Added to the queue at #${position}: **${track.title}** (${length})`);
+    const first = result.tracks[0];
+    const firstLine = positions[0] === 0
+      ? `▶️ Now playing: **${first.title}** (${formatDuration(first.duration)})`
+      : `starting at #${positions[0]} in the queue`;
+
+    if (!result.playlist) {
+      return interaction.editReply(positions[0] === 0
+        ? firstLine
+        : `➕ Added to the queue at #${positions[0]}: **${first.title}** (${formatDuration(first.duration)})`);
+    }
+
+    const count = result.tracks.length;
+    await interaction.editReply(
+      `📃 Added ${count} song${count === 1 ? '' : 's'} from **${result.playlist}**, ${positions[0] === 0 ? 'starting now.' : firstLine + '.'}`
+      + (positions[0] === 0 ? `\n${firstLine}` : ''),
+    );
   },
 };
