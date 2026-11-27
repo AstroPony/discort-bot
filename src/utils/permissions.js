@@ -1,4 +1,4 @@
-const { PermissionsBitField } = require('discord.js');
+const { MessageFlags } = require('discord.js');
 const logger = require('./logger');
 
 class PermissionChecker {
@@ -18,7 +18,7 @@ class PermissionChecker {
         if (!hasRequiredRole) {
           await interaction.reply({
             content: 'You do not have the required role to use this command.',
-            ephemeral: true
+            flags: MessageFlags.Ephemeral
           });
           return false;
         }
@@ -30,7 +30,7 @@ class PermissionChecker {
         if (!channels.includes(currentChannel)) {
           await interaction.reply({
             content: 'This command cannot be used in this channel.',
-            ephemeral: true
+            flags: MessageFlags.Ephemeral
           });
           return false;
         }
@@ -46,7 +46,7 @@ class PermissionChecker {
         if (missingPermissions.length > 0) {
           await interaction.reply({
             content: `You are missing the following permissions: ${missingPermissions.join(', ')}`,
-            ephemeral: true
+            flags: MessageFlags.Ephemeral
           });
           return false;
         }
@@ -57,7 +57,7 @@ class PermissionChecker {
       logger.error('Error checking permissions:', error);
       await interaction.reply({
         content: 'An error occurred while checking permissions.',
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
       });
       return false;
     }

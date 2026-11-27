@@ -10,19 +10,17 @@
     "deploy-commands": "node src/deploy-commands.js"
   },
   "dependencies": {
-    "@discordjs/voice": "^0.16.1",
-    "discord.js": "^14.14.1",
+    "@discordjs/voice": "^0.19.2",
+    "discord.js": "^14.28.1",
     "dotenv": "^16.4.1",
     "express": "^4.18.2",
     "joi": "^17.12.1",
-    "libsodium-wrappers": "^0.7.13",
-    "opusscript": "^0.0.8",
-    "play-dl": "^1.9.7",
-    "winston": "^3.11.0",
-    "yt-dlp-wrap": "^2.3.12",
-    "ytdl-core": "^4.11.5"
+    "winston": "^3.11.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.3"
+  },
+  "engines": {
+    "node": ">=22.12.0"
   }
 }

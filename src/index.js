@@ -22,9 +22,7 @@ app.get('/health', (req, res) => {
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.GuildVoiceStates,
-    GatewayIntentBits.MessageContent
+    GatewayIntentBits.GuildVoiceStates
   ]
 });
 
@@ -34,9 +32,18 @@ process.on('uncaughtException', (error) => {
   // Optionally, you might want to gracefully shutdown here
 });
 
-process.on('unhandledRejection', (reason, promise) => {
-  logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
+process.on('unhandledRejection', (reason) => {
+  logger.error('Unhandled Rejection:', reason);
 });
+
+// Graceful shutdown (Railway sends SIGTERM on redeploy)
+for (const signal of ['SIGINT', 'SIGTERM']) {
+  process.on(signal, async () => {
+    logger.info(`${signal} received, shutting down`);
+    await client.destroy();
+    process.exit(0);
+  });
+}
 
 // Initialize collections
 client.commands = new Collection();

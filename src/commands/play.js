@@ -1,7 +1,75 @@
 const { SlashCommandBuilder } = require('discord.js');
-const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, VoiceConnectionStatus, StreamType } = require('@discordjs/voice');
+const {
+  joinVoiceChannel,
+  getVoiceConnection,
+  createAudioPlayer,
+  createAudioResource,
+  entersState,
+  AudioPlayerStatus,
+  VoiceConnectionStatus,
+  StreamType,
+} = require('@discordjs/voice');
 const { getInfo, createStream } = require('../config/ytdl');
 const logger = require('../utils/logger');
+
+// One player per guild, so a new /play replaces the current song instead of
+// spawning a second player and leaking the old connection.
+const players = new Map();
+
+function getPlayer(guildId) {
+  let entry = players.get(guildId);
+  if (entry) return entry;
+
+  const player = createAudioPlayer();
+  entry = { player, kill: null };
+
+  player.on(AudioPlayerStatus.Playing, () => logger.info(`[${guildId}] playing`));
+  player.on(AudioPlayerStatus.Idle, () => {
+    logger.info(`[${guildId}] idle, leaving voice`);
+    entry.kill?.();
+    getVoiceConnection(guildId)?.destroy();
+    players.delete(guildId);
+  });
+  player.on('error', error => logger.error(`[${guildId}] audio player error: ${error.message}`));
+
+  players.set(guildId, entry);
+  return entry;
+}
+
+async function connect(interaction) {
+  const channel = interaction.member.voice.channel;
+  const guildId = interaction.guild.id;
+
+  let connection = getVoiceConnection(guildId);
+  if (!connection || connection.joinConfig.channelId !== channel.id) {
+    connection = joinVoiceChannel({
+      channelId: channel.id,
+      guildId,
+      adapterCreator: interaction.guild.voiceAdapterCreator,
+      selfDeaf: true,
+    });
+
+    connection.on('error', error => logger.error(`[${guildId}] voice connection error: ${error.message}`));
+
+    // Try to recover from brief disconnects (e.g. region moves); otherwise clean up.
+    connection.on(VoiceConnectionStatus.Disconnected, async () => {
+      try {
+        await Promise.race([
+          entersState(connection, VoiceConnectionStatus.Signalling, 5_000),
+          entersState(connection, VoiceConnectionStatus.Connecting, 5_000),
+        ]);
+      } catch {
+        logger.warn(`[${guildId}] voice disconnected, cleaning up`);
+        players.get(guildId)?.kill?.();
+        players.delete(guildId);
+        if (connection.state.status !== VoiceConnectionStatus.Destroyed) connection.destroy();
+      }
+    });
+  }
+
+  await entersState(connection, VoiceConnectionStatus.Ready, 20_000);
+  return connection;
+}
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -13,95 +81,45 @@ module.exports = {
         .setRequired(true)),
 
   async execute(interaction) {
-    try {
-      await interaction.deferReply();
-      const url = interaction.options.getString('url');
-      
-      if (!interaction.member.voice.channel) {
-        return interaction.editReply('You need to be in a voice channel to use this command!');
-      }
+    await interaction.deferReply();
 
-      logger.info(`Attempting to play URL: ${url}`);
-      const info = await getInfo(url);
-      const title = info.title;
-
-      // Create voice connection with debug logging
-      const connection = joinVoiceChannel({
-        channelId: interaction.member.voice.channel.id,
-        guildId: interaction.guild.id,
-        adapterCreator: interaction.guild.voiceAdapterCreator,
-        selfDeaf: false,
-      });
-
-      // Add connection state change logging
-      connection.on(VoiceConnectionStatus.Ready, () => {
-        logger.info('Voice Connection is ready!');
-      });
-
-      connection.on(VoiceConnectionStatus.Disconnected, () => {
-        logger.warn('Voice Connection disconnected!');
-      });
-
-      connection.on('error', error => {
-        logger.error('Voice Connection error:', error);
-      });
-
-      // Create audio player with debug logging
-      const player = createAudioPlayer();
-      
-      logger.info('Creating audio stream...');
-      const stream = await createStream(url);
-      
-      logger.info('Creating audio resource...');
-      const resource = createAudioResource(stream, {
-        inputType: StreamType.Raw,
-        inlineVolume: true
-      });
-
-      // Set initial volume
-      resource.volume?.setVolume(0.5);
-
-      // Add player state change logging
-      player.on(AudioPlayerStatus.Playing, () => {
-        logger.info('Audio player is playing');
-      });
-
-      player.on(AudioPlayerStatus.Idle, () => {
-        logger.info('Audio player is idle');
-        connection.destroy();
-      });
-
-      player.on(AudioPlayerStatus.Buffering, () => {
-        logger.info('Audio player is buffering');
-      });
-
-      player.on('error', error => {
-        logger.error('Audio player error:', error);
-        interaction.editReply('An error occurred while playing the audio.').catch(err => 
-          logger.error('Error sending error message:', err)
-        );
-        connection.destroy();
-      });
-
-      // Subscribe connection to player
-      const subscription = connection.subscribe(player);
-      if (subscription) {
-        logger.info('Successfully subscribed connection to player');
-      } else {
-        logger.error('Failed to subscribe connection to player');
-        return interaction.editReply('Failed to establish audio playback connection');
-      }
-
-      // Start playback
-      player.play(resource);
-      logger.info(`Starting playback of: ${title}`);
-      
-      await interaction.editReply(`Now playing: ${title}`);
-    } catch (error) {
-      logger.error('Error in play command:', error);
-      await interaction.editReply(`An error occurred: ${error.message}`).catch(err => 
-        logger.error('Error sending error message:', err)
-      );
+    if (!interaction.inGuild() || !interaction.member.voice?.channel) {
+      return interaction.editReply('You need to be in a voice channel to use this command!');
     }
-  }
-}; 
+
+    const url = interaction.options.getString('url');
+    logger.info(`Attempting to play URL: ${url}`);
+
+    let info;
+    try {
+      info = await getInfo(url);
+    } catch (error) {
+      logger.error(`Could not fetch info for ${url}: ${error.message}`);
+      return interaction.editReply(`Couldn't load that video: ${error.message}`);
+    }
+
+    let connection;
+    try {
+      connection = await connect(interaction);
+    } catch (error) {
+      logger.error(`Could not join voice: ${error.message}`);
+      getVoiceConnection(interaction.guild.id)?.destroy();
+      return interaction.editReply("I couldn't join your voice channel. Check that I have Connect and Speak permissions.");
+    }
+
+    const entry = getPlayer(interaction.guild.id);
+    const previousKill = entry.kill;
+    const { stream, kill } = createStream(info.url);
+    entry.kill = kill;
+
+    const resource = createAudioResource(stream, { inputType: StreamType.OggOpus });
+    connection.subscribe(entry.player);
+    entry.player.play(resource);
+    // Kill the old song's processes only after the new one has taken over,
+    // so its stream ending doesn't trip the Idle handler.
+    previousKill?.();
+
+    logger.info(`Starting playback of: ${info.title}`);
+    await interaction.editReply(`Now playing: **${info.title}**`);
+  },
+};
