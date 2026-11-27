@@ -14,17 +14,22 @@ A robust Discord music bot built with Node.js, featuring YouTube playback, error
 
 ## Prerequisites
 
-- Node.js 16.x or higher
-- npm or yarn
+- Node.js 22.12 or higher (required by `@discordjs/voice` 0.19)
+- npm
 - Discord Bot Token
-- FFmpeg installed on your system
+- [FFmpeg](https://ffmpeg.org/) (with libopus) on your `PATH`
+- [yt-dlp](https://github.com/yt-dlp/yt-dlp) on your `PATH` — keep it updated (`yt-dlp -U`), YouTube changes often
+
+Set `FFMPEG_PATH` / `YTDLP_PATH` in `.env` if they're not on your `PATH`.
+
+Discord requires the DAVE end-to-end encryption protocol for voice since March 2026; `@discordjs/voice` 0.19 handles this via `@snazzah/davey`.
 
 ## Setup
 
 1. Clone the repository:
 ```bash
 git clone <repository-url>
-cd discord-music-bot
+cd discort-bot
 ```
 
 2. Install dependencies:
@@ -41,6 +46,11 @@ cp .env.example .env
 
 ## Development
 
+Register the slash commands (needed once, and whenever a command's options change):
+```bash
+npm run deploy-commands
+```
+
 Run the bot in development mode with hot reloading:
 ```bash
 npm run dev
@@ -48,11 +58,13 @@ npm run dev
 
 ## Deployment
 
-The bot is configured for deployment on Railway. To deploy:
+The bot deploys to Railway using the included `Dockerfile` (Node 22 + ffmpeg + yt-dlp). To deploy:
 
 1. Push your changes to your repository
-2. Railway will automatically detect the Node.js project and deploy it
-3. Set up your environment variables in the Railway dashboard
+2. Railway builds the Dockerfile and runs `npm start`
+3. Set `DISCORD_TOKEN` and `CLIENT_ID` in the Railway dashboard
+
+Each rebuild pulls the latest yt-dlp. If YouTube playback breaks, redeploy first.
 
 ## Commands
 

@@ -1,86 +1,67 @@
 const { spawn } = require('child_process');
-const YtDlpWrap = require('yt-dlp-wrap').default;
 const logger = require('../utils/logger');
-const path = require('path');
-const fs = require('fs');
 
-// Initialize yt-dlp with auto-download
-const ytDlpWrap = new YtDlpWrap();
+// yt-dlp must be installed on the host (see README / Dockerfile).
+// YouTube extraction needs a JS runtime; Node is always present, so point yt-dlp at it.
+const YTDLP = process.env.YTDLP_PATH || 'yt-dlp';
+const FFMPEG = process.env.FFMPEG_PATH || 'ffmpeg';
+const BASE_ARGS = ['--no-playlist', '--no-warnings', '--js-runtimes', `node:${process.execPath}`];
 
-// Download yt-dlp if needed
-async function ensureYtDlp() {
-  try {
-    await YtDlpWrap.downloadFromGithub();
-    logger.info('Successfully downloaded yt-dlp');
-  } catch (error) {
-    if (error.code === 'ETXTBSY') {
-      logger.warn('yt-dlp is busy, retrying in 1 second...');
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      return ensureYtDlp();
-    }
-    logger.error('Error downloading yt-dlp:', error);
-    throw error;
-  }
-}
-
-// Fetch video info using yt-dlp-wrap
-async function getInfo(url) {
-  try {
-    await ensureYtDlp();
-    const infoArr = [];
-    await ytDlpWrap.execPromise([
-      url,
-      '--dump-single-json',
-      '--no-warnings',
-      '--no-check-certificates',
-      '--prefer-free-formats',
-      '--add-header', 'referer:youtube.com',
-      '--add-header', 'user-agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-    ]).then(json => {
-      infoArr.push(JSON.parse(json));
+function run(args) {
+  return new Promise((resolve, reject) => {
+    const proc = spawn(YTDLP, [...BASE_ARGS, ...args], { stdio: ['ignore', 'pipe', 'pipe'] });
+    let out = '';
+    let err = '';
+    proc.stdout.on('data', d => { out += d; });
+    proc.stderr.on('data', d => { err += d; });
+    proc.on('error', e => reject(new Error(`Could not start yt-dlp (${YTDLP}): ${e.message}`)));
+    proc.on('close', code => {
+      if (code === 0) resolve(out);
+      else reject(new Error(err.trim().split('\n').pop() || `yt-dlp exited with code ${code}`));
     });
-    return infoArr[0];
-  } catch (error) {
-    if (error.code === 'ETXTBSY') {
-      logger.warn('yt-dlp is busy, retrying in 1 second...');
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      return getInfo(url);
-    }
-    logger.error('Error fetching video info:', error);
-    throw new Error(`Failed to fetch video info: ${error.stderr || error.message}`);
-  }
+  });
 }
 
-// Create an audio stream using yt-dlp and ffmpeg for PCM output
-async function createStream(url) {
-  await ensureYtDlp();
-  // yt-dlp outputs bestaudio to stdout, ffmpeg reads from stdin and outputs PCM
-  const ytdlp = spawn('yt-dlp', [
-    '-f', 'bestaudio',
-    '-o', '-', // output to stdout
-    '--no-playlist',
-    '--no-warnings',
-    '--add-header', 'referer:youtube.com',
-    '--add-header', 'user-agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-    url
-  ], { stdio: ['ignore', 'pipe', 'ignore'] });
+// Fetch basic video info (title, duration, page URL)
+async function getInfo(url) {
+  const json = await run(['--dump-single-json', url]);
+  const info = JSON.parse(json);
+  return { title: info.title, duration: info.duration, url: info.webpage_url || url };
+}
 
-  const ffmpeg = spawn('ffmpeg', [
+// Stream audio as Ogg/Opus: yt-dlp -> ffmpeg -> Discord.
+// Opus output means @discordjs/voice only demuxes; no native Opus encoder is needed.
+function createStream(url) {
+  const ytdlp = spawn(YTDLP, [...BASE_ARGS, '-f', 'bestaudio/best', '-o', '-', url], {
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  const ffmpeg = spawn(FFMPEG, [
+    '-loglevel', 'error',
     '-i', 'pipe:0',
-    '-analyzeduration', '0',
-    '-loglevel', '0',
-    '-f', 's16le',
+    '-vn',
+    '-c:a', 'libopus',
+    '-b:a', '128k',
     '-ar', '48000',
     '-ac', '2',
-    'pipe:1'
-  ], { stdio: ['pipe', 'pipe', 'ignore'] });
+    '-f', 'ogg',
+    'pipe:1',
+  ], { stdio: ['pipe', 'pipe', 'pipe'] });
 
   ytdlp.stdout.pipe(ffmpeg.stdin);
+  // Ignore EPIPE when ffmpeg is killed before yt-dlp finishes
+  ffmpeg.stdin.on('error', () => {});
+  ytdlp.stderr.on('data', d => logger.debug(`yt-dlp: ${d}`.trim()));
+  ffmpeg.stderr.on('data', d => logger.warn(`ffmpeg: ${d}`.trim()));
+  ytdlp.on('error', e => logger.error(`yt-dlp failed to start: ${e.message}`));
+  ffmpeg.on('error', e => logger.error(`ffmpeg failed to start: ${e.message}`));
 
-  return ffmpeg.stdout;
+  const kill = () => {
+    ytdlp.kill('SIGKILL');
+    ffmpeg.kill('SIGKILL');
+  };
+  ffmpeg.stdout.on('close', kill);
+
+  return { stream: ffmpeg.stdout, kill };
 }
 
-module.exports = {
-  getInfo,
-  createStream
-}; 
+module.exports = { getInfo, createStream };
