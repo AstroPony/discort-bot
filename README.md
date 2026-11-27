@@ -4,7 +4,7 @@ A robust Discord music bot built with Node.js, featuring YouTube playback, error
 
 ## Features
 
-- YouTube music playback
+- YouTube music playback with a per-server queue
 - Global error handling
 - Environment variable validation
 - Modular command and event system
@@ -68,8 +68,16 @@ Each rebuild pulls the latest yt-dlp. If YouTube playback breaks, redeploy first
 
 ## Commands
 
-- `/play <url>` - Play a song from YouTube
-- More commands coming soon...
+- `/play <url>` - Play a song from YouTube, or add it to the queue if something is already playing
+- `/skip` - Skip to the next song
+- `/pause` / `/resume` - Pause and resume the current song
+- `/nowplaying` - Show the current song
+- `/queue` - Show what's playing and what's up next
+- `/stop` - Stop, clear the queue and leave the voice channel
+
+Each server has its own queue. Control commands only work for people in the bot's voice channel. The bot leaves after one minute with an empty queue.
+
+After pulling new commands, run `npm run deploy-commands` again so they show up in Discord (global commands can take a few minutes to appear).
 
 ## Error Handling
 
